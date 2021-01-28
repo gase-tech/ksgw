@@ -1,31 +1,33 @@
 package main
 
 import (
+	"encoding/json"
 	"github.com/codegangsta/martini"
+	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"strings"
 )
 
 type Locator struct {
-	prefix string
-	urls   []string
+	Prefix string   `json:"prefix"`
+	Urls   []string `json:"urls"`
 }
 
-var locators []*Locator
+type LocatorFile struct {
+	Locators []Locator `json:"locators"`
+}
+
+var locators []Locator
 
 func main() {
-	locators = append(locators, &Locator{
-		prefix: "go-service",
-		urls:   []string{"http://localhost:8085"},
-	})
+	fillLocators()
+	startServer()
+}
 
-	locators = append(locators, &Locator{
-		prefix: "user-service",
-		urls:   []string{"http://localhost:9075"},
-	})
-
+func startServer() {
 	app := martini.Classic()
 	app.Post("/**", handler())
 	app.Get("/**", handler())
@@ -43,8 +45,8 @@ func handler() func(http.ResponseWriter, *http.Request, martini.Params) {
 			reqPrefix := splitedPath[0]
 
 			for _, locator := range locators {
-				if locator.prefix == reqPrefix {
-					remote, err := url.Parse(locator.urls[0])
+				if locator.Prefix == reqPrefix {
+					remote, err := url.Parse(locator.Urls[0])
 					if err != nil {
 						panic(err)
 					}
@@ -67,4 +69,28 @@ func handler() func(http.ResponseWriter, *http.Request, martini.Params) {
 			}
 		}
 	}
+}
+
+func fillLocators() {
+	readFile()
+}
+
+func readFile() {
+	jsonFile, err := os.Open("locators.json")
+
+	if err != nil {
+		panic(err)
+	}
+
+	defer jsonFile.Close()
+	byteValue, _ := ioutil.ReadAll(jsonFile)
+
+	var fileObj LocatorFile
+	err = json.Unmarshal(byteValue, &fileObj)
+
+	if err != nil {
+		panic(err)
+	}
+
+	locators = fileObj.Locators
 }

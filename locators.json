@@ -1,0 +1,12 @@
+{
+  "locators": [
+    {
+      "prefix": "go-service",
+      "urls": ["http://localhost:8085"]
+    },
+    {
+      "prefix": "user-service",
+      "urls": ["http://localhost:9075"]
+    }
+  ]
+}
