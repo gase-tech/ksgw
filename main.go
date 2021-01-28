@@ -10,7 +10,7 @@ import (
 
 type Locator struct {
 	prefix string
-	url    string
+	urls   []string
 }
 
 var locators []*Locator
@@ -18,12 +18,12 @@ var locators []*Locator
 func main() {
 	locators = append(locators, &Locator{
 		prefix: "go-service",
-		url:    "http://localhost:8085",
+		urls:   []string{"http://localhost:8085"},
 	})
 
 	locators = append(locators, &Locator{
 		prefix: "user-service",
-		url:    "http://localhost:9075",
+		urls:   []string{"http://localhost:9075"},
 	})
 
 	app := martini.Classic()
@@ -44,7 +44,7 @@ func handler() func(http.ResponseWriter, *http.Request, martini.Params) {
 
 			for _, locator := range locators {
 				if locator.prefix == reqPrefix {
-					remote, err := url.Parse(locator.url)
+					remote, err := url.Parse(locator.urls[0])
 					if err != nil {
 						panic(err)
 					}
