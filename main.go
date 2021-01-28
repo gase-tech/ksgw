@@ -64,6 +64,8 @@ func handler() func(http.ResponseWriter, *http.Request, martini.Params) {
 					}
 
 					r.URL.Path = redirectPath
+					// TODO: auth işleminden sonra currentUser header ı eklenmeli
+					r.Header.Add("deneme", "bilal")
 					proxy.ServeHTTP(w, r)
 				}
 			}
