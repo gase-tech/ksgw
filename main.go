@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"github.com/codegangsta/martini"
+	"github.com/martini-contrib/cors"
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
@@ -29,12 +30,22 @@ func main() {
 
 func startServer() {
 	app := martini.Classic()
+	app.Use(cors.Allow(corsOptions()))
 	app.Post("/**", handler())
 	app.Get("/**", handler())
 	app.Put("/**", handler())
 	app.Delete("/**", handler())
 	app.Options("/**", handler())
 	app.RunOnAddr(":4000")
+}
+
+func corsOptions() *cors.Options {
+	return &cors.Options{
+		AllowMethods:     []string{"POST, OPTIONS, GET, PUT, DELETE"},
+		AllowHeaders:     []string{"Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With", "Origin"},
+		AllowCredentials: true,
+		AllowAllOrigins:  true,
+	}
 }
 
 func handler() func(http.ResponseWriter, *http.Request, martini.Params) {
