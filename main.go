@@ -25,17 +25,17 @@ var locators []Locator
 
 func main() {
 	fillLocators()
-	startServer()
+	prepareAndStartServer()
 }
 
-func startServer() {
+func prepareAndStartServer() {
 	app := martini.Classic()
 	app.Use(cors.Allow(corsOptions()))
-	app.Post("/**", handler())
-	app.Get("/**", handler())
-	app.Put("/**", handler())
-	app.Delete("/**", handler())
-	app.Options("/**", handler())
+	app.Post("/**", genericHandler())
+	app.Get("/**", genericHandler())
+	app.Put("/**", genericHandler())
+	app.Delete("/**", genericHandler())
+	app.Options("/**", genericHandler())
 	app.RunOnAddr(":4000")
 }
 
@@ -48,7 +48,7 @@ func corsOptions() *cors.Options {
 	}
 }
 
-func handler() func(http.ResponseWriter, *http.Request, martini.Params) {
+func genericHandler() func(http.ResponseWriter, *http.Request, martini.Params) {
 	return func(w http.ResponseWriter, r *http.Request, params martini.Params) {
 		path := params["_1"]
 		splitedPath := strings.Split(path, "/")
