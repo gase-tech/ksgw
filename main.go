@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/codegangsta/martini"
 	uuid2 "github.com/google/uuid"
+	"github.com/kelseyhightower/envconfig"
 	"github.com/martini-contrib/cors"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
@@ -11,19 +12,48 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
 
+const (
+	// LOG TYPES
+	ReqDetail = "REQUEST_DETAIL"
+
+	// HEADER
+	ReqUuid = "REQ_UUID"
+
+	// Locator Source
+	StaticFile = "STATIC_FILE"
+	Eureka     = "EUREKA"
+	Consul     = "CONSUL"
+
+	// Profiles
+	Dev  = "DEV"
+	Test = "TEST"
+	Prod = "PROD"
+)
+
 type ApplicationConfig struct {
-	LocatorSource        string // STATIC_FILE, EUREKA, CONSUL -> default => STATIC_FILE
-	TimeOut              string // default => 60
-	Profile              string // DEV, TEST, PROD -> default => 60
-	Port                 string // default => 4000
-	CorsAllowedMethods   string // default => "POST, OPTIONS, GET, PUT, DELETE"
-	CorsAllowedHeaders   string // default => "Content-Type, Accept-Language, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With", "Origin"
-	CorsAllowCredentials bool   // default => true
-	CorsAllowOrigins     string // default => "*"
+	// StaticFile, EUREKA, CONSUL -> default => StaticFile
+	LocatorSource string `envconfig:"LOCATOR_SOURCE" default:"STATIC_FILE"`
+	// default => locators.json
+	LocatorFilePath string `envconfig:"LOCATOR_FILE_PATH" default:"locators.json"`
+	// default => 60
+	TimeOut string `envconfig:"TIME_OUT" default:"60"`
+	// DEV, TEST, PROD -> default => 60
+	Profile string `envconfig:"PROFILE" default:"DEV"`
+	// default => 4000
+	Port string `envconfig:"PORT" default:"4000"`
+	// default => "POST, OPTIONS, GET, PUT, DELETE"
+	CorsAllowedMethods string `envconfig:"CORS_ALLOWED_METHODS" default:"POST, OPTIONS, GET, PUT, DELETE"`
+	// default => Content-Type, Accept-Language, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With", Origin
+	CorsAllowedHeaders string `envconfig:"CORS_ALLOWED_HEADERS" default:"Content-Type, Accept-Language, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, Origin"`
+	// default => true
+	CorsAllowCredentials bool `envconfig:"CORS_ALLOW_CREDENTIALS" default:"true"`
+	// default => "*"
+	CorsAllowOrigins string `envconfig:"CORS_ALLOW_ORIGINS" default:"*"`
 }
 
 type Locator struct {
@@ -36,25 +66,25 @@ type LocatorFile struct {
 }
 
 var locators []Locator
-
-const (
-	// LOG TYPES
-	REQ_DETAIL = "REQUEST_DETAIL"
-
-	// HEADER
-	REQ_UUID = "REQ_UUID"
-
-	LOCATOR_FILE_NAME = "locators.json"
-)
+var applicationConfig ApplicationConfig
 
 func init() {
+	err := envconfig.Process("", &applicationConfig)
+	if err != nil {
+		log.Error(err)
+		panic(err)
+	}
+
 	log.SetFormatter(&log.JSONFormatter{})
 
 	log.SetOutput(os.Stdout)
 	log.SetReportCaller(true)
 
-	// TODO: depend profile
-	log.SetLevel(log.InfoLevel)
+	if applicationConfig.Profile == Dev {
+		log.SetLevel(log.DebugLevel)
+	} else {
+		log.SetLevel(log.InfoLevel)
+	}
 }
 
 func main() {
@@ -70,17 +100,15 @@ func prepareAndStartServer() {
 	app.Put("/**", genericHandler())
 	app.Delete("/**", genericHandler())
 	app.Options("/**", genericHandler())
-	// TODO: read environment
-	app.RunOnAddr(":4000")
+	app.RunOnAddr(":" + applicationConfig.Port)
 }
 
 func corsOptions() *cors.Options {
 	return &cors.Options{
-		// TODO: this fields fill environment (maybe)
-		AllowMethods:     []string{"POST, OPTIONS, GET, PUT, DELETE"},
-		AllowHeaders:     []string{"Content-Type, Accept-Language, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With", "Origin"},
-		AllowCredentials: true,
-		AllowOrigins:     []string{"*"},
+		AllowMethods:     []string{applicationConfig.CorsAllowedMethods},
+		AllowHeaders:     []string{applicationConfig.CorsAllowedHeaders},
+		AllowCredentials: applicationConfig.CorsAllowCredentials,
+		AllowOrigins:     []string{applicationConfig.CorsAllowOrigins},
 	}
 }
 
@@ -106,9 +134,9 @@ func genericHandler() func(http.ResponseWriter, *http.Request, martini.Params) {
 					r.URL.Path = redirectPath
 					// TODO: auth işleminden sonra currentUser header ı eklenmeli
 					r.Header.Add("deneme", "bilal headerrr")
-					r.Header.Add(REQ_UUID, uuid)
+					r.Header.Add(ReqUuid, uuid)
 					log.WithFields(log.Fields{
-						"type": REQ_DETAIL,
+						"type": ReqDetail,
 					}).Info(r)
 					proxy.ServeHTTP(w, r)
 				}
@@ -135,16 +163,16 @@ func getRedirectPath(paths []string) string {
 func prepareProxy(remote *url.URL) *httputil.ReverseProxy {
 	proxy := httputil.NewSingleHostReverseProxy(remote)
 
+	timeOutInt, _ := strconv.ParseInt(applicationConfig.TimeOut, 10, 64)
+	duration := time.Duration(timeOutInt * 1000 * 1000 * 1000)
 	proxy.Transport = &http.Transport{
-		// TODO: read environment
-		ResponseHeaderTimeout: 5 * time.Second,
+		ResponseHeaderTimeout: duration,
 	}
 
 	proxy.ErrorHandler = func(writer http.ResponseWriter, request *http.Request, err error) {
 		log.Error(err)
 		writer.WriteHeader(http.StatusBadGateway)
-		// TODO: read environment
-		errStr := err.Error() + " Timeout: 5 second."
+		errStr := err.Error() + " Timeout: " + applicationConfig.TimeOut + " second."
 		_, _ = writer.Write([]byte(errStr))
 	}
 
@@ -152,12 +180,17 @@ func prepareProxy(remote *url.URL) *httputil.ReverseProxy {
 }
 
 func fillLocators() {
-	// TODO: read environment
-	readFile()
+	if applicationConfig.LocatorSource == StaticFile {
+		readFile()
+	} else if applicationConfig.LocatorSource == Eureka {
+		// eureka
+	} else if applicationConfig.LocatorSource == Consul {
+		// consul
+	}
 }
 
 func readFile() {
-	jsonFile, err := os.Open(LOCATOR_FILE_NAME)
+	jsonFile, err := os.Open(applicationConfig.LocatorFilePath)
 
 	if err != nil {
 		panic(err)

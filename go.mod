@@ -7,6 +7,7 @@ require (
 	github.com/codegangsta/martini v0.0.0-20170121215854-22fa46961aab
 	github.com/go-martini/martini v0.0.0-20170121215854-22fa46961aab // indirect
 	github.com/google/uuid v1.2.0
+	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/martini-contrib/cors v0.0.0-20141016003011-553b9208d353
 	github.com/sirupsen/logrus v1.7.0
 )
