@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"github.com/codegangsta/martini"
+	uuid2 "github.com/google/uuid"
 	"github.com/martini-contrib/cors"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
@@ -25,6 +26,16 @@ type LocatorFile struct {
 
 var locators []Locator
 
+const (
+	// LOG TYPES
+	REQ_DETAIL = "REQUEST_DETAIL"
+
+	// HEADER
+	REQ_UUID = "REQ_UUID"
+
+	LOCATOR_FILE_NAME = "locators.json"
+)
+
 func init() {
 	log.SetFormatter(&log.JSONFormatter{})
 
@@ -32,7 +43,7 @@ func init() {
 	log.SetReportCaller(true)
 
 	// TODO: depend profile
-	log.SetLevel(log.WarnLevel)
+	log.SetLevel(log.InfoLevel)
 }
 
 func main() {
@@ -53,8 +64,9 @@ func prepareAndStartServer() {
 
 func corsOptions() *cors.Options {
 	return &cors.Options{
+		// TODO: this fields fill environment (maybe)
 		AllowMethods:     []string{"POST, OPTIONS, GET, PUT, DELETE"},
-		AllowHeaders:     []string{"Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With", "Origin"},
+		AllowHeaders:     []string{"Content-Type, Accept-Language, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With", "Origin"},
 		AllowCredentials: true,
 		AllowAllOrigins:  true,
 	}
@@ -77,10 +89,15 @@ func genericHandler() func(http.ResponseWriter, *http.Request, martini.Params) {
 					proxy := prepareProxy(remote)
 
 					redirectPath := getRedirectPath(splitedPath)
+					uuid := uuid2.New().String()
 
 					r.URL.Path = redirectPath
 					// TODO: auth işleminden sonra currentUser header ı eklenmeli
-					r.Header.Add("deneme", "bilal")
+					r.Header.Add("deneme", "bilal headerrr")
+					r.Header.Add(REQ_UUID, uuid)
+					log.WithFields(log.Fields{
+						"type": REQ_DETAIL,
+					}).Info(r)
 					proxy.ServeHTTP(w, r)
 				}
 			}
@@ -128,7 +145,7 @@ func fillLocators() {
 }
 
 func readFile() {
-	jsonFile, err := os.Open("locators.json")
+	jsonFile, err := os.Open(LOCATOR_FILE_NAME)
 
 	if err != nil {
 		panic(err)
