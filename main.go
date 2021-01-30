@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"github.com/codegangsta/martini"
 	"github.com/martini-contrib/cors"
+	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
 	"strings"
+	"time"
 )
 
 type Locator struct {
@@ -22,6 +24,16 @@ type LocatorFile struct {
 }
 
 var locators []Locator
+
+func init() {
+	log.SetFormatter(&log.JSONFormatter{})
+
+	log.SetOutput(os.Stdout)
+	log.SetReportCaller(true)
+
+	// TODO: depend profile
+	log.SetLevel(log.WarnLevel)
+}
 
 func main() {
 	fillLocators()
@@ -61,18 +73,10 @@ func genericHandler() func(http.ResponseWriter, *http.Request, martini.Params) {
 					if err != nil {
 						panic(err)
 					}
-					proxy := httputil.NewSingleHostReverseProxy(remote)
 
-					redirectPath := ""
-					for i, subPath := range splitedPath {
-						if i != 0 {
-							redirectPath += subPath
+					proxy := prepareProxy(remote)
 
-							if i < len(splitedPath)-1 {
-								redirectPath += "/"
-							}
-						}
-					}
+					redirectPath := getRedirectPath(splitedPath)
 
 					r.URL.Path = redirectPath
 					// TODO: auth işleminden sonra currentUser header ı eklenmeli
@@ -84,7 +88,42 @@ func genericHandler() func(http.ResponseWriter, *http.Request, martini.Params) {
 	}
 }
 
+func getRedirectPath(paths []string) string {
+	redirectPath := ""
+	for i, subPath := range paths {
+		if i != 0 {
+			redirectPath += subPath
+
+			if i < len(paths)-1 {
+				redirectPath += "/"
+			}
+		}
+	}
+
+	return redirectPath
+}
+
+func prepareProxy(remote *url.URL) *httputil.ReverseProxy {
+	proxy := httputil.NewSingleHostReverseProxy(remote)
+
+	proxy.Transport = &http.Transport{
+		// TODO: read environment
+		ResponseHeaderTimeout: 5 * time.Second,
+	}
+
+	proxy.ErrorHandler = func(writer http.ResponseWriter, request *http.Request, err error) {
+		log.Error(err)
+		writer.WriteHeader(http.StatusBadGateway)
+		// TODO: read environment
+		errStr := err.Error() + " Timeout: 5 second."
+		_, _ = writer.Write([]byte(errStr))
+	}
+
+	return proxy
+}
+
 func fillLocators() {
+	// TODO: read environment
 	readFile()
 }
 
