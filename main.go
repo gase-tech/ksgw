@@ -15,6 +15,17 @@ import (
 	"time"
 )
 
+type ApplicationConfig struct {
+	LocatorSource        string // STATIC_FILE, EUREKA, CONSUL -> default => STATIC_FILE
+	TimeOut              string // default => 60
+	Profile              string // DEV, TEST, PROD -> default => 60
+	Port                 string // default => 4000
+	CorsAllowedMethods   string // default => "POST, OPTIONS, GET, PUT, DELETE"
+	CorsAllowedHeaders   string // default => "Content-Type, Accept-Language, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With", "Origin"
+	CorsAllowCredentials bool   // default => true
+	CorsAllowOrigins     string // default => "*"
+}
+
 type Locator struct {
 	Prefix string   `json:"prefix"`
 	Urls   []string `json:"urls"`
@@ -59,6 +70,7 @@ func prepareAndStartServer() {
 	app.Put("/**", genericHandler())
 	app.Delete("/**", genericHandler())
 	app.Options("/**", genericHandler())
+	// TODO: read environment
 	app.RunOnAddr(":4000")
 }
 
@@ -68,7 +80,7 @@ func corsOptions() *cors.Options {
 		AllowMethods:     []string{"POST, OPTIONS, GET, PUT, DELETE"},
 		AllowHeaders:     []string{"Content-Type, Accept-Language, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With", "Origin"},
 		AllowCredentials: true,
-		AllowAllOrigins:  true,
+		AllowOrigins:     []string{"*"},
 	}
 }
 
