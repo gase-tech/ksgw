@@ -1,0 +1,7 @@
+rules:
+  - path: /user-service/**
+    methods:
+      - GET
+      - POST
+    roles:
+      - ADMIN

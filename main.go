@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/carlescere/scheduler"
 	"github.com/codegangsta/martini"
 	"github.com/go-resty/resty/v2"
@@ -9,6 +10,7 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"github.com/martini-contrib/cors"
 	log "github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
@@ -20,34 +22,71 @@ import (
 )
 
 var locators []Locator
-var applicationConfig ApplicationConfig
+var appCfg ApplicationConfig
 var client = resty.New()
 var i18n map[string]string
+var securityRules []SecurityRule
 
 func init() {
-	err := envconfig.Process("", &applicationConfig)
+	err := envconfig.Process("", &appCfg)
 	if err != nil {
-		log.Error(err)
+		log.WithFields(log.Fields{"type": Config}).Error(err)
 		panic(err)
 	}
 
 	loggingConfiguration()
 
 	i18nConfiguration()
+
+	securityConfiguration()
+}
+
+func securityConfiguration() {
+	if appCfg.SecurityEnabled {
+		securityConfigUpdater := func() { fillSecurityRulesFromFile() }
+
+		_, _ = scheduler.Every(appCfg.FetchSecuritySecond).Seconds().Run(securityConfigUpdater)
+	}
+}
+
+func fillSecurityRulesFromFile() {
+	yamlFile, err := os.Open(appCfg.SecurityYamlPath)
+
+	if err != nil {
+		log.WithFields(log.Fields{"type": Config}).Error(err)
+		panic(err)
+	}
+
+	defer yamlFile.Close()
+	byteValue, _ := ioutil.ReadAll(yamlFile)
+
+	var fileObj SecurityYaml
+	err = yaml.Unmarshal(byteValue, &fileObj)
+
+	if err != nil {
+		log.WithFields(log.Fields{"type": Config}).Error(err)
+		panic(err)
+	}
+
+	securityRules = fileObj.Rules
+	log.WithFields(log.Fields{"type": Config}).Debugf(i18n[SecurityConfigUpdated])
 }
 
 func i18nConfiguration() {
 	var jsonFile *os.File
 	var err error
-	if applicationConfig.Language == EN {
+	if appCfg.Language == EN {
 		jsonFile, err = os.Open("EN.json")
-	} else if applicationConfig.Language == TR {
+	} else if appCfg.Language == TR {
 		jsonFile, err = os.Open("TR.json")
 	} else {
-		jsonFile, err = os.Open("EN.json")
+		err := errors.New("Unsupported Language.")
+		log.WithFields(log.Fields{"type": Config}).Error(err)
+		panic(err)
 	}
 
 	if err != nil {
+		log.WithFields(log.Fields{"type": Config}).Error(err)
 		panic(err)
 	}
 
@@ -56,6 +95,7 @@ func i18nConfiguration() {
 	err = json.Unmarshal(byteValue, &i18n)
 
 	if err != nil {
+		log.WithFields(log.Fields{"type": Config}).Error(err)
 		panic(err)
 	}
 }
@@ -66,7 +106,7 @@ func loggingConfiguration() {
 	log.SetOutput(os.Stdout)
 	log.SetReportCaller(true)
 
-	if applicationConfig.Profile == Dev {
+	if appCfg.Profile == Dev {
 		log.SetLevel(log.DebugLevel)
 	} else {
 		log.SetLevel(log.InfoLevel)
@@ -86,15 +126,15 @@ func prepareAndStartServer() {
 	app.Put("/**", genericHandler())
 	app.Delete("/**", genericHandler())
 	app.Options("/**", genericHandler())
-	app.RunOnAddr(":" + applicationConfig.Port)
+	app.RunOnAddr(":" + appCfg.Port)
 }
 
 func corsOptions() *cors.Options {
 	return &cors.Options{
-		AllowMethods:     []string{applicationConfig.CorsAllowedMethods},
-		AllowHeaders:     []string{applicationConfig.CorsAllowedHeaders},
-		AllowCredentials: applicationConfig.CorsAllowCredentials,
-		AllowOrigins:     []string{applicationConfig.CorsAllowOrigins},
+		AllowMethods:     []string{appCfg.CorsAllowedMethods},
+		AllowHeaders:     []string{appCfg.CorsAllowedHeaders},
+		AllowCredentials: appCfg.CorsAllowCredentials,
+		AllowOrigins:     []string{appCfg.CorsAllowOrigins},
 	}
 }
 
@@ -116,9 +156,13 @@ func genericHandler() func(http.ResponseWriter, *http.Request, martini.Params) {
 			if equivalentLocator != nil {
 				remote, err := url.Parse(equivalentLocator.Urls[0])
 				if err != nil {
-					log.WithFields(log.Fields{
-						"type": ReqDetail,
-					}).Error(err)
+					log.WithFields(log.Fields{"type": ReqDetail}).Error(err)
+				}
+
+				isContinue := checkSecurity(w, r, path)
+
+				if !isContinue {
+					return
 				}
 
 				proxy := prepareProxy(remote)
@@ -130,9 +174,7 @@ func genericHandler() func(http.ResponseWriter, *http.Request, martini.Params) {
 				// TODO: auth işleminden sonra currentUser header ı eklenmeli
 				r.Header.Add("deneme", "bilal headerrr")
 				r.Header.Add(ReqUuid, uuid)
-				log.WithFields(log.Fields{
-					"type": ReqDetail,
-				}).Info(r)
+				log.WithFields(log.Fields{"type": ReqDetail}).Info(r)
 				proxy.ServeHTTP(w, r)
 			} else {
 				w.Header().Set("Content-Type", "application/json")
@@ -141,6 +183,59 @@ func genericHandler() func(http.ResponseWriter, *http.Request, martini.Params) {
 			}
 		}
 	}
+}
+
+func checkSecurity(w http.ResponseWriter, r *http.Request, path string) bool {
+	if appCfg.SecurityEnabled {
+		rule := findSuitableSecurityRule(*r)
+
+		if rule != nil {
+			authToken := r.Header.Get(Authorization)
+			if authToken == "" || !strings.HasPrefix(authToken, SupportedTokenType) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusUnauthorized)
+				_, _ = w.Write(generateGenericErrorJsonStr(i18n[RequireAuthentication]))
+				return false
+			} else {
+				// TODO: call grpc service
+				return true
+			}
+		} else {
+			return true
+		}
+	} else {
+		return true
+	}
+}
+
+func findSuitableSecurityRule(r http.Request) *SecurityRule {
+	for _, rule := range securityRules {
+		if rule.Methods == nil || len(rule.Methods) == 0 || exist(rule.Methods, r.Method) {
+			if comparePath(rule.Path, r.RequestURI) {
+				return &rule
+			}
+		}
+	}
+	return nil
+}
+
+func comparePath(rulePath string, requestPath string) bool {
+	ruleDividedPath := strings.Split(rulePath, "/")
+	requestDividedPath := strings.Split(requestPath, "/")
+
+	for i, ruleVal := range ruleDividedPath {
+		if ruleVal == "**" {
+			return true
+		} else {
+			requestVal := requestDividedPath[i]
+
+			if ruleVal != requestVal {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 func getRedirectPath(paths []string) string {
@@ -161,7 +256,7 @@ func getRedirectPath(paths []string) string {
 func prepareProxy(remote *url.URL) *httputil.ReverseProxy {
 	proxy := httputil.NewSingleHostReverseProxy(remote)
 
-	timeOutInt, _ := strconv.ParseInt(applicationConfig.TimeOut, 10, 64)
+	timeOutInt, _ := strconv.ParseInt(appCfg.TimeOut, 10, 64)
 	duration := time.Duration(timeOutInt * 1000 * 1000 * 1000)
 	proxy.Transport = &http.Transport{
 		ResponseHeaderTimeout: duration,
@@ -171,7 +266,7 @@ func prepareProxy(remote *url.URL) *httputil.ReverseProxy {
 		log.Error(err)
 		writer.Header().Set("Content-Type", "application/json")
 		writer.WriteHeader(http.StatusBadGateway)
-		errStr := err.Error() + " Timeout: " + applicationConfig.TimeOut + " second."
+		errStr := err.Error() + " Timeout: " + appCfg.TimeOut + " second."
 		_, _ = writer.Write(generateGenericErrorJsonStr(errStr))
 	}
 
@@ -180,15 +275,15 @@ func prepareProxy(remote *url.URL) *httputil.ReverseProxy {
 
 func fillLocators() {
 	var receiveLocatorStrategy func()
-	if applicationConfig.LocatorSource == StaticFile {
+	if appCfg.LocatorSource == StaticFile {
 		receiveLocatorStrategy = func() { receiveLocatorsOnFile() }
-	} else if applicationConfig.LocatorSource == Eureka {
+	} else if appCfg.LocatorSource == Eureka {
 		receiveLocatorStrategy = func() { receiveLocatorsOnEureka() }
-	} else if applicationConfig.LocatorSource == Consul {
+	} else if appCfg.LocatorSource == Consul {
 		receiveLocatorStrategy = func() { receiveLocatorsOnConsul() }
 	}
 
-	_, _ = scheduler.Every(applicationConfig.FetchLocatorsSecond).Seconds().Run(receiveLocatorStrategy)
+	_, _ = scheduler.Every(appCfg.FetchLocatorsSecond).Seconds().Run(receiveLocatorStrategy)
 }
 
 func receiveLocatorsOnConsul() {
@@ -221,9 +316,7 @@ func receiveLocatorsOnConsul() {
 				locators = append(locators, *locator)
 			}
 
-			log.WithFields(log.Fields{
-				"type": Scheduler,
-			}).Debugf(i18n[SuccessfullyFetchOnConsul])
+			log.WithFields(log.Fields{"type": Scheduler}).Debugf(i18n[SuccessfullyFetchOnConsul])
 		}
 	}
 }
@@ -235,17 +328,15 @@ func getConsulServiceDetail(serviceID string) *ConsulServiceInfo {
 	request.SetHeader("Accept", "application/json")
 	request.SetResult(&ConsulServiceInfo{})
 
-	if applicationConfig.ConsulUsername != "" && applicationConfig.ConsulPassword != "" {
-		request.SetBasicAuth(applicationConfig.ConsulPassword, applicationConfig.ConsulPassword)
+	if appCfg.ConsulUsername != "" && appCfg.ConsulPassword != "" {
+		request.SetBasicAuth(appCfg.ConsulPassword, appCfg.ConsulPassword)
 	}
 
-	serviceInfoUrl := applicationConfig.ConsulUrl + "/agent/service/" + serviceID
+	serviceInfoUrl := appCfg.ConsulUrl + "/agent/service/" + serviceID
 	infoResp, err := request.Get(serviceInfoUrl)
 
 	if err != nil {
-		log.WithFields(log.Fields{
-			"type": Scheduler,
-		}).Error(err)
+		log.WithFields(log.Fields{"type": Scheduler}).Error(err)
 		return nil
 	}
 
@@ -269,17 +360,15 @@ func getConsulChecks() *[]ConsulChecksResponse {
 	request.SetHeader("Accept", "application/json")
 	request.SetResult(&map[string]*ConsulChecksResponse{})
 
-	if applicationConfig.ConsulUsername != "" && applicationConfig.ConsulPassword != "" {
-		request.SetBasicAuth(applicationConfig.ConsulPassword, applicationConfig.ConsulPassword)
+	if appCfg.ConsulUsername != "" && appCfg.ConsulPassword != "" {
+		request.SetBasicAuth(appCfg.ConsulPassword, appCfg.ConsulPassword)
 	}
 
-	checkUrl := applicationConfig.ConsulUrl + "/agent/checks"
+	checkUrl := appCfg.ConsulUrl + "/agent/checks"
 	checkResponse, err := request.Get(checkUrl)
 
 	if err != nil {
-		log.WithFields(log.Fields{
-			"type": Scheduler,
-		}).Error(err)
+		log.WithFields(log.Fields{"type": Scheduler}).Error(err)
 		return nil
 	}
 
@@ -321,9 +410,7 @@ func receiveLocatorsOnEureka() {
 			locator.Urls = urls
 			locators[i] = *locator
 		}
-		log.WithFields(log.Fields{
-			"type": Scheduler,
-		}).Debugf(i18n[SuccessfullyFetchOnEureka])
+		log.WithFields(log.Fields{"type": Scheduler}).Debugf(i18n[SuccessfullyFetchOnEureka])
 	}
 }
 
@@ -333,16 +420,14 @@ func getEurekaServices() *EurekaRegisteredServiceInfos {
 	request.SetHeader("Accept", "application/json")
 	request.SetResult(&EurekaRegisteredServiceInfos{})
 
-	if applicationConfig.EurekaUsername != "" && applicationConfig.EurekaPassword != "" {
-		request.SetBasicAuth(applicationConfig.EurekaUsername, applicationConfig.EurekaPassword)
+	if appCfg.EurekaUsername != "" && appCfg.EurekaPassword != "" {
+		request.SetBasicAuth(appCfg.EurekaUsername, appCfg.EurekaPassword)
 	}
-	eurekaUrl := applicationConfig.EurekaUrl + "/eureka/apps"
+	eurekaUrl := appCfg.EurekaUrl + "/eureka/apps"
 	response, err := request.Get(eurekaUrl)
 
 	if err != nil {
-		log.WithFields(log.Fields{
-			"type": Scheduler,
-		}).Error(err)
+		log.WithFields(log.Fields{"type": Scheduler}).Error(err)
 		return nil
 	}
 
@@ -350,12 +435,10 @@ func getEurekaServices() *EurekaRegisteredServiceInfos {
 }
 
 func receiveLocatorsOnFile() {
-	jsonFile, err := os.Open(applicationConfig.LocatorFilePath)
+	jsonFile, err := os.Open(appCfg.LocatorFilePath)
 
 	if err != nil {
-		log.WithFields(log.Fields{
-			"type": Scheduler,
-		}).Error(err)
+		log.WithFields(log.Fields{"type": Scheduler}).Error(err)
 	}
 
 	defer jsonFile.Close()
@@ -365,13 +448,12 @@ func receiveLocatorsOnFile() {
 	err = json.Unmarshal(byteValue, &fileObj)
 
 	if err != nil {
+		log.WithFields(log.Fields{"type": Scheduler}).Error(err)
 		panic(err)
 	}
 
 	locators = fileObj.Locators
-	log.WithFields(log.Fields{
-		"type": Scheduler,
-	}).Debugf(i18n[SuccessfullyFetchOnFile])
+	log.WithFields(log.Fields{"type": Scheduler}).Debugf(i18n[SuccessfullyFetchOnFile])
 }
 
 func generateGenericErrorJsonStr(msg string) []byte {
@@ -385,4 +467,13 @@ func generateGenericErrorJsonStr(msg string) []byte {
 	}
 
 	return jsStr
+}
+
+func exist(source []string, search string) bool {
+	for _, s := range source {
+		if s == search {
+			return true
+		}
+	}
+	return false
 }

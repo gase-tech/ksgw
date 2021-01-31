@@ -12,4 +12,5 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/martini-contrib/cors v0.0.0-20141016003011-553b9208d353
 	github.com/sirupsen/logrus v1.7.0
+	gopkg.in/yaml.v2 v2.4.0
 )

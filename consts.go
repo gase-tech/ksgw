@@ -4,9 +4,12 @@ const (
 	// LOG TYPES
 	ReqDetail = "REQUEST_DETAIL"
 	Scheduler = "SCHEDULER"
+	Config    = "CONFIG"
 
 	// HEADER
-	ReqUuid = "REQ_UUID"
+	ReqUuid            = "REQ_UUID"
+	Authorization      = "Authorization"
+	SupportedTokenType = "Bearer"
 
 	// Locator Source
 	StaticFile = "STATIC_FILE"
@@ -32,5 +35,7 @@ const (
 	SuccessfullyFetchOnFile   = "SuccessfullyFetchOnFile"
 	SuccessfullyFetchOnEureka = "SuccessfullyFetchOnEureka"
 	SuccessfullyFetchOnConsul = "SuccessfullyFetchOnConsul"
+	SecurityConfigUpdated     = "SecurityConfigUpdated"
+	RequireAuthentication     = "RequireAuthentication"
 	GenericError              = "GenericError"
 )

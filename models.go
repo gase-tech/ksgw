@@ -7,16 +7,24 @@ type ApplicationConfig struct {
 	LocatorSource       string `envconfig:"LOCATOR_SOURCE" default:"STATIC_FILE"`
 	LocatorFilePath     string `envconfig:"LOCATOR_FILE_PATH" default:"locators.json"`
 	FetchLocatorsSecond int    `envconfig:"FETCH_LOCATORS_SECOND" default:"30"`
-	EurekaUrl           string `envconfig:"EUREKA_URL" default:"http://localhost:8090"`
-	EurekaUsername      string `envconfig:"EUREKA_USERNAME"`
-	EurekaPassword      string `envconfig:"EUREKA_PASSWORD"`
-	ConsulUrl           string `envconfig:"CONSUL_URL" default:"http://localhost:8500/v1"`
-	ConsulUsername      string `envconfig:"CONSUL_USERNAME"`
-	ConsulPassword      string `envconfig:"CONSUL_PASSWORD"`
-	TimeOut             string `envconfig:"TIME_OUT" default:"60"`
+
+	EurekaUrl      string `envconfig:"EUREKA_URL" default:"http://localhost:8090"`
+	EurekaUsername string `envconfig:"EUREKA_USERNAME"`
+	EurekaPassword string `envconfig:"EUREKA_PASSWORD"`
+
+	ConsulUrl      string `envconfig:"CONSUL_URL" default:"http://localhost:8500/v1"`
+	ConsulUsername string `envconfig:"CONSUL_USERNAME"`
+	ConsulPassword string `envconfig:"CONSUL_PASSWORD"`
+
+	SecurityEnabled     bool   `envconfig:"SECURITY_ENABLED" default:"true"`
+	SecurityYamlPath    string `envconfig:"SECURITY_YAML_PATH" default:"security.yml"`
+	FetchSecuritySecond int    `envconfig:"FETCH_SECURITY_SECOND" default:"30"`
+
+	TimeOut string `envconfig:"TIME_OUT" default:"60"`
 	// Dev, Test, Prod -> default => Dev
-	Profile              string `envconfig:"PROFILE" default:"DEV"`
-	Port                 string `envconfig:"PORT" default:"4000"`
+	Profile string `envconfig:"PROFILE" default:"DEV"`
+	Port    string `envconfig:"PORT" default:"4000"`
+
 	CorsAllowedMethods   string `envconfig:"CORS_ALLOWED_METHODS" default:"POST, OPTIONS, GET, PUT, DELETE"`
 	CorsAllowedHeaders   string `envconfig:"CORS_ALLOWED_HEADERS" default:"Content-Type, Accept-Language, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, Origin"`
 	CorsAllowCredentials bool   `envconfig:"CORS_ALLOW_CREDENTIALS" default:"true"`
@@ -93,4 +101,14 @@ type ConsulServiceInfo struct {
 	EnableTagOverride bool        `json:"EnableTagOverride"`
 	ContentHash       string      `json:"ContentHash"`
 	Datacenter        string      `json:"Datacenter"`
+}
+
+type SecurityYaml struct {
+	Rules []SecurityRule `yaml:"rules"`
+}
+
+type SecurityRule struct {
+	Path    string   `yaml:"path"`
+	Methods []string `yaml:"methods"`
+	Roles   []string `yaml:"roles"`
 }
