@@ -19,75 +19,6 @@ import (
 	"time"
 )
 
-const (
-	// LOG TYPES
-	ReqDetail = "REQUEST_DETAIL"
-	Scheduler = "SCHEDULER"
-
-	// HEADER
-	ReqUuid = "REQ_UUID"
-
-	// Locator Source
-	StaticFile = "STATIC_FILE"
-	Eureka     = "EUREKA"
-	Consul     = "CONSUL"
-
-	// Profiles
-	Dev  = "DEV"
-	Test = "TEST"
-	Prod = "PROD"
-
-	// Languages
-	EN = "EN"
-	TR = "TR"
-
-	// Messages
-	ServiceNotFound           = "ServiceNotFound"
-	SuccessfullyFetchOnFile   = "SuccessfullyFetchOnFile"
-	SuccessfullyFetchOnEureka = "SuccessfullyFetchOnEureka"
-	GenericError              = "GenericError"
-)
-
-type ApplicationConfig struct {
-	// EN, TR
-	Language string `envconfig:"LANGUAGE" default:"EN"`
-	// StaticFile, EUREKA, CONSUL -> default => StaticFile
-	LocatorSource string `envconfig:"LOCATOR_SOURCE" default:"STATIC_FILE"`
-	// default => locators.json
-	LocatorFilePath string `envconfig:"LOCATOR_FILE_PATH" default:"locators.json"`
-	// default => 30 second
-	FetchLocatorsSecond int `envconfig:"FETCH_LOCATORS_SECOND" default:"30"`
-	// default => http://localhost:8090/eureka/apps
-	EurekaUrl string `envconfig:"EUREKA_URL" default:"http://localhost:8090/eureka/apps"`
-	// default => ""
-	EurekaUsername string `envconfig:"EUREKA_USERNAME"`
-	// default => ""
-	EurekaPassword string `envconfig:"EUREKA_PASSWORD"`
-	// default => 60
-	TimeOut string `envconfig:"TIME_OUT" default:"60"`
-	// DEV, TEST, PROD -> default => 60
-	Profile string `envconfig:"PROFILE" default:"DEV"`
-	// default => 4000
-	Port string `envconfig:"PORT" default:"4000"`
-	// default => "POST, OPTIONS, GET, PUT, DELETE"
-	CorsAllowedMethods string `envconfig:"CORS_ALLOWED_METHODS" default:"POST, OPTIONS, GET, PUT, DELETE"`
-	// default => Content-Type, Accept-Language, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With", Origin
-	CorsAllowedHeaders string `envconfig:"CORS_ALLOWED_HEADERS" default:"Content-Type, Accept-Language, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, Origin"`
-	// default => true
-	CorsAllowCredentials bool `envconfig:"CORS_ALLOW_CREDENTIALS" default:"true"`
-	// default => "*"
-	CorsAllowOrigins string `envconfig:"CORS_ALLOW_ORIGINS" default:"*"`
-}
-
-type Locator struct {
-	Prefix string   `json:"prefix"`
-	Urls   []string `json:"urls"`
-}
-
-type LocatorFile struct {
-	Locators []Locator `json:"locators"`
-}
-
 var locators []Locator
 var applicationConfig ApplicationConfig
 var client = resty.New()
@@ -254,13 +185,149 @@ func fillLocators() {
 	} else if applicationConfig.LocatorSource == Eureka {
 		receiveLocatorStrategy = func() { receiveLocatorsOnEureka() }
 	} else if applicationConfig.LocatorSource == Consul {
-		// consul
+		receiveLocatorStrategy = func() { receiveLocatorsOnConsul() }
 	}
 
 	_, _ = scheduler.Every(applicationConfig.FetchLocatorsSecond).Seconds().Run(receiveLocatorStrategy)
 }
 
+func receiveLocatorsOnConsul() {
+	checkResult := getConsulChecks()
+
+	if checkResult != nil {
+		healthyServices := filterConsulServices(*checkResult, func(serviceCheck ConsulChecksResponse) bool {
+			if serviceCheck.Status != Passing {
+				return false
+			} else {
+				return true
+			}
+		})
+
+		if len(healthyServices) > 0 {
+			groupedServices := groupConsulChecksByServiceName(healthyServices)
+			locators = nil
+
+			for service, instances := range groupedServices {
+				locator := &Locator{}
+				lower := strings.ToLower(service)
+				locator.Prefix = lower
+
+				urls := make([]string, len(instances))
+				for i, instance := range instances {
+					detail := getConsulServiceDetail(instance.ServiceID)
+					urls[i] = "http://" + detail.Address + ":" + strconv.FormatInt(int64(detail.Port), 10)
+				}
+				locator.Urls = urls
+				locators = append(locators, *locator)
+			}
+
+			log.WithFields(log.Fields{
+				"type": Scheduler,
+			}).Debugf(i18n[SuccessfullyFetchOnConsul])
+		}
+	}
+}
+
+func getConsulServiceDetail(serviceID string) *ConsulServiceInfo {
+	request := client.R()
+
+	request.SetHeader("Content-Type", "application/json")
+	request.SetHeader("Accept", "application/json")
+	request.SetResult(&ConsulServiceInfo{})
+
+	if applicationConfig.ConsulUsername != "" && applicationConfig.ConsulPassword != "" {
+		request.SetBasicAuth(applicationConfig.ConsulPassword, applicationConfig.ConsulPassword)
+	}
+
+	serviceInfoUrl := applicationConfig.ConsulUrl + "/agent/service/" + serviceID
+	infoResp, err := request.Get(serviceInfoUrl)
+
+	if err != nil {
+		log.WithFields(log.Fields{
+			"type": Scheduler,
+		}).Error(err)
+		return nil
+	}
+
+	return infoResp.Result().(*ConsulServiceInfo)
+}
+
+func groupConsulChecksByServiceName(services []ConsulChecksResponse) map[string][]ConsulChecksResponse {
+	result := make(map[string][]ConsulChecksResponse)
+
+	for _, service := range services {
+		result[service.ServiceName] = append(result[service.ServiceName], service)
+	}
+
+	return result
+}
+
+func getConsulChecks() *[]ConsulChecksResponse {
+	request := client.R()
+
+	request.SetHeader("Content-Type", "application/json")
+	request.SetHeader("Accept", "application/json")
+	request.SetResult(&map[string]*ConsulChecksResponse{})
+
+	if applicationConfig.ConsulUsername != "" && applicationConfig.ConsulPassword != "" {
+		request.SetBasicAuth(applicationConfig.ConsulPassword, applicationConfig.ConsulPassword)
+	}
+
+	checkUrl := applicationConfig.ConsulUrl + "/agent/checks"
+	checkResponse, err := request.Get(checkUrl)
+
+	if err != nil {
+		log.WithFields(log.Fields{
+			"type": Scheduler,
+		}).Error(err)
+		return nil
+	}
+
+	result := checkResponse.Result().(*map[string]*ConsulChecksResponse)
+
+	var checkList []ConsulChecksResponse
+
+	for _, v := range *result {
+		checkList = append(checkList, *v)
+	}
+
+	return &checkList
+}
+
+func filterConsulServices(sources []ConsulChecksResponse, criteria func(serviceCheck ConsulChecksResponse) bool) []ConsulChecksResponse {
+	var result []ConsulChecksResponse
+	for _, source := range sources {
+		if criteria(source) {
+			result = append(result, source)
+		}
+	}
+	return result
+}
+
 func receiveLocatorsOnEureka() {
+	result := getEurekaServices()
+
+	if result != nil {
+		locators = make([]Locator, len(result.Application.Apps))
+		for i, service := range result.Application.Apps {
+			locator := &Locator{}
+			lower := strings.ToLower(service.Name)
+			locator.Prefix = lower
+
+			urls := make([]string, len(service.Instances))
+			for i, instance := range service.Instances {
+				urls[i] = "http://" + instance.Hostname + ":" + strconv.FormatInt(int64(instance.Port.Value), 10)
+			}
+			locator.Urls = urls
+			locators[i] = *locator
+		}
+		log.WithFields(log.Fields{
+			"type": Scheduler,
+		}).Debugf(i18n[SuccessfullyFetchOnEureka])
+	}
+}
+
+func getEurekaServices() *EurekaRegisteredServiceInfos {
 	request := client.R()
 	request.SetHeader("Content-Type", "application/json")
 	request.SetHeader("Accept", "application/json")
@@ -269,33 +336,17 @@ func receiveLocatorsOnEureka() {
 	if applicationConfig.EurekaUsername != "" && applicationConfig.EurekaPassword != "" {
 		request.SetBasicAuth(applicationConfig.EurekaUsername, applicationConfig.EurekaPassword)
 	}
-
-	response, err := request.Get(applicationConfig.EurekaUrl)
+	eurekaUrl := applicationConfig.EurekaUrl + "/eureka/apps"
+	response, err := request.Get(eurekaUrl)
 
 	if err != nil {
 		log.WithFields(log.Fields{
 			"type": Scheduler,
 		}).Error(err)
+		return nil
 	}
 
-	result := response.Result().(*EurekaRegisteredServiceInfos)
-
-	locators = make([]Locator, len(result.Application.Apps))
-	for i, service := range result.Application.Apps {
-		locator := &Locator{}
-		lower := strings.ToLower(service.Name)
-		locator.Prefix = lower
-
-		urls := make([]string, len(service.Instances))
-		for i, instance := range service.Instances {
-			urls[i] = "http://" + instance.Hostname + ":" + strconv.FormatInt(int64(instance.Port.Value), 10)
-		}
-		locator.Urls = urls
-		locators[i] = *locator
-	}
-	log.WithFields(log.Fields{
-		"type": Scheduler,
-	}).Debugf(i18n[SuccessfullyFetchOnEureka])
+	return response.Result().(*EurekaRegisteredServiceInfos)
 }
 
 func receiveLocatorsOnFile() {
@@ -323,38 +374,6 @@ func receiveLocatorsOnFile() {
 	}).Debugf(i18n[SuccessfullyFetchOnFile])
 }
 
-type EurekaRegisteredServiceInfos struct {
-	Application EurekaRegisteredApp `json:"applications"`
-}
-
-type EurekaRegisteredApp struct {
-	Version string                      `json:"versions__delta"`
-	Hash    string                      `json:"apps__hashcode"`
-	Apps    []EurekaRegistryApplication `json:"application"`
-}
-
-type EurekaRegistryApplication struct {
-	Name      string                   `json:"name"`
-	Instances []EurekaRegistryInstance `json:"instance"`
-}
-
-type EurekaRegistryInstance struct {
-	InstanceId       string             `json:"instanceId"`
-	Hostname         string             `json:"hostname"`
-	App              string             `json:"app"`
-	IpAddress        string             `json:"ipAddr"`
-	Status           string             `json:"status"`
-	OverriddenStatus string             `json:"overriddenStatus"`
-	Port             EurekaRegisterInfo `json:"port"`
-	SecurePort       EurekaRegisterInfo `json:"securePort"`
-	CountryId        int                `json:"countryId"`
-}
-
-type EurekaRegisterInfo struct {
-	Value    int    `json:"$"`
-	IsActive string `json:"@enabled"`
-}
-
 func generateGenericErrorJsonStr(msg string) []byte {
 	model := GenericErrorModel{Msg: msg}
 
@@ -366,8 +385,4 @@ func generateGenericErrorJsonStr(msg string) []byte {
 	}
 
 	return jsStr
-}
-
-type GenericErrorModel struct {
-	Msg string `json:"msg"`
 }

@@ -2,5 +2,6 @@
   "ServiceNotFound": "Yönlendirilecek servis bulunamadı.",
   "SuccessfullyFetchOnFile": "Yönlendirme kuralları dosyadan başarılı şekilde okundu ve güncellendi.",
   "SuccessfullyFetchOnEureka": "Yönlendirme kuralları Eureka sunucusundan başarılı şekilde alındı ve güncellendi.",
+  "SuccessfullyFetchOnConsul": "Yönlendirme kuralları Consul sunucusundan başarılı şekilde alındı ve güncellendi.",
   "GenericError": "Detaylar için lütfen logları görüntüleyiniz."
 }
