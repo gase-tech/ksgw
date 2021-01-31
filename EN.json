@@ -1,0 +1,6 @@
+{
+  "ServiceNotFound": "Service not found.",
+  "SuccessfullyFetchOnFile": "Successfully read locators in file.",
+  "SuccessfullyFetchOnEureka": "Successfully fetch for eureka services.",
+  "GenericError": "Please view logs."
+}
