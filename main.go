@@ -141,9 +141,9 @@ func corsOptions() *cors.Options {
 func genericHandler() func(http.ResponseWriter, *http.Request, martini.Params) {
 	return func(w http.ResponseWriter, r *http.Request, params martini.Params) {
 		path := params["_1"]
-		splitedPath := strings.Split(path, "/")
-		if len(splitedPath) > 0 {
-			reqPrefix := splitedPath[0]
+		dividedPath := strings.Split(path, "/")
+		if len(dividedPath) > 0 {
+			reqPrefix := dividedPath[0]
 
 			var equivalentLocator *Locator
 			for _, locator := range locators {
@@ -167,7 +167,7 @@ func genericHandler() func(http.ResponseWriter, *http.Request, martini.Params) {
 
 				proxy := prepareProxy(remote)
 
-				redirectPath := getRedirectPath(splitedPath)
+				redirectPath := getRedirectPath(dividedPath)
 				uuid := uuid2.New().String()
 
 				r.URL.Path = redirectPath
