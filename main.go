@@ -77,9 +77,9 @@ func i18nConfiguration() {
 	var jsonFile *os.File
 	var err error
 	if appCfg.Language == EN {
-		jsonFile, err = os.Open("EN.json")
+		jsonFile, err = os.Open("i18n/EN.json")
 	} else if appCfg.Language == TR {
-		jsonFile, err = os.Open("TR.json")
+		jsonFile, err = os.Open("i18n/TR.json")
 	} else {
 		err := errors.New("Unsupported Language.")
 		log.WithFields(log.Fields{"type": Config}).Error(err)
