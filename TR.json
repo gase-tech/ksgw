@@ -5,5 +5,6 @@
   "SuccessfullyFetchOnConsul": "Yönlendirme kuralları Consul sunucusundan başarılı şekilde alındı ve güncellendi.",
   "SecurityConfigUpdated": "Güvenlik kuralları başarılı şekilde güncellendi.",
   "RequireAuthentication": "Giriş yapmanız gerekmektedir.",
+  "RequireAuthorization": "Bu istek için yetkiniz bulunmamaktadır.",
   "GenericError": "Detaylar için lütfen logları görüntüleyiniz."
 }

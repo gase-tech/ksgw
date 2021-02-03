@@ -5,11 +5,13 @@ const (
 	ReqDetail = "REQUEST_DETAIL"
 	Scheduler = "SCHEDULER"
 	Config    = "CONFIG"
+	Security  = "SECURITY"
 
 	// HEADER
 	ReqUuid            = "REQ_UUID"
 	Authorization      = "Authorization"
 	SupportedTokenType = "Bearer"
+	UserIdHeader       = "currentUserId"
 
 	// Locator Source
 	StaticFile = "STATIC_FILE"
@@ -37,5 +39,6 @@ const (
 	SuccessfullyFetchOnConsul = "SuccessfullyFetchOnConsul"
 	SecurityConfigUpdated     = "SecurityConfigUpdated"
 	RequireAuthentication     = "RequireAuthentication"
+	RequireAuthorization      = "RequireAuthorization"
 	GenericError              = "GenericError"
 )

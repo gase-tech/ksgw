@@ -54,7 +54,6 @@ func fillSecurityRulesFromFile() {
 
 	if err != nil {
 		log.WithFields(log.Fields{"type": Config}).Error(err)
-		panic(err)
 	}
 
 	defer yamlFile.Close()
@@ -65,7 +64,6 @@ func fillSecurityRulesFromFile() {
 
 	if err != nil {
 		log.WithFields(log.Fields{"type": Config}).Error(err)
-		panic(err)
 	}
 
 	securityRules = fileObj.Rules
@@ -121,11 +119,11 @@ func main() {
 func prepareAndStartServer() {
 	app := martini.Classic()
 	app.Use(cors.Allow(corsOptions()))
-	app.Post("/**", genericHandler())
-	app.Get("/**", genericHandler())
-	app.Put("/**", genericHandler())
-	app.Delete("/**", genericHandler())
-	app.Options("/**", genericHandler())
+	app.Post("/**", requestMarker(), securityHandler(), genericHandler())
+	app.Get("/**", requestMarker(), securityHandler(), genericHandler())
+	app.Put("/**", requestMarker(), securityHandler(), genericHandler())
+	app.Delete("/**", requestMarker(), securityHandler(), genericHandler())
+	app.Options("/**", requestMarker(), securityHandler(), genericHandler())
 	app.RunOnAddr(":" + appCfg.Port)
 }
 
@@ -138,73 +136,57 @@ func corsOptions() *cors.Options {
 	}
 }
 
-func genericHandler() func(http.ResponseWriter, *http.Request, martini.Params) {
+func requestMarker() func(http.ResponseWriter, *http.Request, martini.Params) {
 	return func(w http.ResponseWriter, r *http.Request, params martini.Params) {
-		path := params["_1"]
-		dividedPath := strings.Split(path, "/")
-		if len(dividedPath) > 0 {
-			reqPrefix := dividedPath[0]
+		uuid := uuid2.New().String()
+		r.Header.Add(ReqUuid, uuid)
+	}
+}
 
-			var equivalentLocator *Locator
-			for _, locator := range locators {
-				if locator.Prefix == reqPrefix {
-					equivalentLocator = &locator
-					break
-				}
-			}
+func securityHandler() func(http.ResponseWriter, *http.Request, martini.Params) {
+	return func(w http.ResponseWriter, r *http.Request, params martini.Params) {
+		if appCfg.SecurityEnabled {
+			rule := findSuitableSecurityRule(*r)
 
-			if equivalentLocator != nil {
-				remote, err := url.Parse(equivalentLocator.Urls[0])
+			if rule != nil {
+				authToken := r.Header.Get(Authorization)
+
+				userID, authenticated, authorized, err := tokenValidation(authToken, rule.Roles)
+
 				if err != nil {
-					log.WithFields(log.Fields{"type": ReqDetail}).Error(err)
-				}
-
-				isContinue := checkSecurity(w, r, path)
-
-				if !isContinue {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusInternalServerError)
+					_, _ = w.Write(generateGenericErrorJsonStr(i18n[GenericError]))
 					return
 				}
 
-				proxy := prepareProxy(remote)
+				if !authenticated {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusUnauthorized)
+					_, _ = w.Write(generateGenericErrorJsonStr(i18n[RequireAuthentication]))
+					return
+				}
 
-				redirectPath := getRedirectPath(dividedPath)
-				uuid := uuid2.New().String()
+				if !authorized {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusForbidden)
+					_, _ = w.Write(generateGenericErrorJsonStr(i18n[RequireAuthorization]))
+					return
+				}
 
-				r.URL.Path = redirectPath
-				// TODO: auth işleminden sonra currentUser header ı eklenmeli
-				r.Header.Add("deneme", "bilal headerrr")
-				r.Header.Add(ReqUuid, uuid)
-				log.WithFields(log.Fields{"type": ReqDetail}).Info(r)
-				proxy.ServeHTTP(w, r)
-			} else {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusNotFound)
-				_, _ = w.Write(generateGenericErrorJsonStr(i18n[ServiceNotFound]))
+				r.Header.Add(UserIdHeader, strconv.FormatInt(userID, 10))
 			}
 		}
 	}
 }
 
-func checkSecurity(w http.ResponseWriter, r *http.Request, path string) bool {
-	if appCfg.SecurityEnabled {
-		rule := findSuitableSecurityRule(*r)
-
-		if rule != nil {
-			authToken := r.Header.Get(Authorization)
-			if authToken == "" || !strings.HasPrefix(authToken, SupportedTokenType) {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusUnauthorized)
-				_, _ = w.Write(generateGenericErrorJsonStr(i18n[RequireAuthentication]))
-				return false
-			} else {
-				// TODO: call grpc service
-				return true
-			}
-		} else {
-			return true
-		}
+func tokenValidation(token string, roles []string) (int64, bool, bool, error) {
+	log.WithFields(log.Fields{"type": Security}).Infof("Token : %v \nRoles: %v", token, roles)
+	if token == "" || !strings.HasPrefix(token, SupportedTokenType) {
+		return 0, false, false, nil
 	} else {
-		return true
+		// TODO: call grpc service
+		return 5, true, true, nil
 	}
 }
 
@@ -236,6 +218,44 @@ func comparePath(rulePath string, requestPath string) bool {
 	}
 
 	return true
+}
+
+func genericHandler() func(http.ResponseWriter, *http.Request, martini.Params) {
+	return func(w http.ResponseWriter, r *http.Request, params martini.Params) {
+		path := params["_1"]
+		dividedPath := strings.Split(path, "/")
+		if len(dividedPath) > 0 {
+			reqPrefix := dividedPath[0]
+
+			var equivalentLocator *Locator
+			for _, locator := range locators {
+				if locator.Prefix == reqPrefix {
+					equivalentLocator = &locator
+					break
+				}
+			}
+
+			if equivalentLocator != nil {
+				remote, err := url.Parse(equivalentLocator.Urls[0])
+				if err != nil {
+					log.WithFields(log.Fields{"type": ReqDetail}).Error(err)
+				}
+
+				proxy := prepareProxy(remote)
+
+				redirectPath := getRedirectPath(dividedPath)
+
+				r.URL.Path = redirectPath
+
+				log.WithFields(log.Fields{"type": ReqDetail}).Info(r)
+				proxy.ServeHTTP(w, r)
+			} else {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write(generateGenericErrorJsonStr(i18n[ServiceNotFound]))
+			}
+		}
+	}
 }
 
 func getRedirectPath(paths []string) string {
