@@ -4,4 +4,4 @@ rules:
       - GET
       - POST
     roles:
-      - ADMIN
+      - ROLE_USER

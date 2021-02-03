@@ -1,15 +1,18 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"github.com/carlescere/scheduler"
 	"github.com/codegangsta/martini"
 	"github.com/go-resty/resty/v2"
 	uuid2 "github.com/google/uuid"
+	token_validation "github.com/imminoglobulib/ksgw/token-validation"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/martini-contrib/cors"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"net/http"
@@ -156,7 +159,7 @@ func securityHandler() func(http.ResponseWriter, *http.Request, martini.Params) 
 				if err != nil {
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusInternalServerError)
-					_, _ = w.Write(generateGenericErrorJsonStr(i18n[GenericError]))
+					_, _ = w.Write(generateGenericErrorJsonStr(err.Error()))
 					return
 				}
 
@@ -174,20 +177,71 @@ func securityHandler() func(http.ResponseWriter, *http.Request, martini.Params) 
 					return
 				}
 
-				r.Header.Add(UserIdHeader, strconv.FormatInt(userID, 10))
+				r.Header.Add(UserIdHeader, strconv.FormatInt(int64(userID), 10))
 			}
 		}
 	}
 }
 
-func tokenValidation(token string, roles []string) (int64, bool, bool, error) {
-	log.WithFields(log.Fields{"type": Security}).Infof("Token : %v \nRoles: %v", token, roles)
+//tokenValidation return: userId, authenticated, authorized, error
+func tokenValidation(token string, expectedRoles []string) (uint64, bool, bool, error) {
+	log.WithFields(log.Fields{"type": Security}).Debugf("Token : %v \nExpected Roles: %v", token, expectedRoles)
 	if token == "" || !strings.HasPrefix(token, SupportedTokenType) {
-		return 0, false, false, nil
+		return 0, false, false, errors.New(i18n[InvalidTokenSyntax])
 	} else {
-		// TODO: call grpc service
-		return 5, true, true, nil
+		userId, userRoles, err := callTokenValidationService(removeTypeInToken(token))
+
+		if err != nil {
+			return 0, false, false, err
+		}
+
+		if len(expectedRoles) == 0 {
+			return userId, true, true, nil
+		} else {
+			isAuthorized := false
+			for _, expectedRole := range expectedRoles {
+				if exist(userRoles, expectedRole) {
+					isAuthorized = true
+					break
+				}
+			}
+
+			if !isAuthorized {
+				return userId, true, false, nil
+			} else {
+				return userId, true, true, nil
+			}
+		}
 	}
+}
+
+func callTokenValidationService(token string) (uint64, []string, error) {
+	var conn *grpc.ClientConn
+	conn, err := grpc.Dial("localhost:7002", grpc.WithInsecure())
+
+	if err != nil {
+		log.WithFields(log.Fields{"type": Security}).Error(err)
+		return 0, nil, errors.New(i18n[TokenValidationConnErr])
+	}
+
+	defer conn.Close()
+	client := token_validation.NewTokenValidationServiceClient(conn)
+
+	request := &token_validation.GetUserDetailsByTokenRequest{
+		Token: token,
+	}
+	response, err := client.GetUserDetailsByToken(context.Background(), request)
+
+	if err != nil {
+		log.WithFields(log.Fields{"type": Security}).Error(err)
+		return 0, nil, errors.New(i18n[TokenValidationServiceErr])
+	}
+	log.WithFields(log.Fields{"type": Security}).Debugf("Validated user: %v", response.User)
+	return response.User.GetId(), response.User.GetAuthorities(), nil
+}
+
+func removeTypeInToken(token string) string {
+	return strings.Replace(token, SupportedTokenType+" ", "", -1)
 }
 
 func findSuitableSecurityRule(r http.Request) *SecurityRule {

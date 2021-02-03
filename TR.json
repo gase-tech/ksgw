@@ -6,5 +6,8 @@
   "SecurityConfigUpdated": "Güvenlik kuralları başarılı şekilde güncellendi.",
   "RequireAuthentication": "Giriş yapmanız gerekmektedir.",
   "RequireAuthorization": "Bu istek için yetkiniz bulunmamaktadır.",
+  "InvalidTokenSyntax": "Token formatını kontrol edin.",
+  "TokenValidationConnErr" : "Token doğrulana servisine erişilemiyor. Lütfen logları inceleyin.",
+  "TokenValidationServiceErr": "Token doğrulanamadı.",
   "GenericError": "Detaylar için lütfen logları görüntüleyiniz."
 }

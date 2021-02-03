@@ -1,0 +1,28 @@
+syntax = "proto3";
+//protoc --go_out=plugins=grpc:token-validation token-validation.proto
+package token_validation;
+
+option java_package = "com.cloudtemplate.proto";
+option java_outer_classname = "TokenValidationProto";
+
+message GetUserDetailsByTokenRequest {
+  string token = 1;
+}
+
+message GetUserDetailsByTokenResponse {
+  UserResourceProto user = 1;
+}
+
+message UserResourceProto {
+  uint64 id = 7;
+  string name = 1;
+  string surname = 2;
+  string mail = 3;
+  string username = 4;
+  string password = 5;
+  repeated string authorities = 6;
+}
+
+service TokenValidationService {
+  rpc GetUserDetailsByToken(GetUserDetailsByTokenRequest) returns (GetUserDetailsByTokenResponse) {}
+}

@@ -40,5 +40,8 @@ const (
 	SecurityConfigUpdated     = "SecurityConfigUpdated"
 	RequireAuthentication     = "RequireAuthentication"
 	RequireAuthorization      = "RequireAuthorization"
+	InvalidTokenSyntax        = "InvalidTokenSyntax"
+	TokenValidationConnErr    = "TokenValidationConnErr"
+	TokenValidationServiceErr = "TokenValidationServiceErr"
 	GenericError              = "GenericError"
 )

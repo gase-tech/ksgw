@@ -4,7 +4,10 @@
   "SuccessfullyFetchOnEureka": "Successfully fetch for eureka services.",
   "SuccessfullyFetchOnConsul": "Successfully fetch for consul services.",
   "SecurityConfigUpdated": "Security config updated.",
-  "RequireAuthentication": "Require authentication",
-  "RequireAuthorization": "Require authorization",
+  "RequireAuthentication": "Require authentication.",
+  "RequireAuthorization": "Require authorization.",
+  "InvalidTokenSyntax": "Invalid token syntax.",
+  "TokenValidationConnErr" : "Token validation service connection error. Please view logs.",
+  "TokenValidationServiceErr": "Token is invalid.",
   "GenericError": "Please view logs."
 }
