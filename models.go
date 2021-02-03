@@ -19,6 +19,7 @@ type ApplicationConfig struct {
 	SecurityEnabled     bool   `envconfig:"SECURITY_ENABLED" default:"true"`
 	SecurityYamlPath    string `envconfig:"SECURITY_YAML_PATH" default:"security.yml"`
 	FetchSecuritySecond int    `envconfig:"FETCH_SECURITY_SECOND" default:"30"`
+	TokenValidationUrl  string `envconfig:"TOKEN_VALIDATION_URL" default:"localhost:7002"`
 
 	TimeOut string `envconfig:"TIME_OUT" default:"60"`
 	// Dev, Test, Prod -> default => Dev

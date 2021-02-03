@@ -217,7 +217,7 @@ func tokenValidation(token string, expectedRoles []string) (uint64, bool, bool, 
 
 func callTokenValidationService(token string) (uint64, []string, error) {
 	var conn *grpc.ClientConn
-	conn, err := grpc.Dial("localhost:7002", grpc.WithInsecure())
+	conn, err := grpc.Dial(appCfg.TokenValidationUrl, grpc.WithInsecure())
 
 	if err != nil {
 		log.WithFields(log.Fields{"type": Security}).Error(err)
