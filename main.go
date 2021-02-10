@@ -122,11 +122,12 @@ func main() {
 func prepareAndStartServer() {
 	app := martini.Classic()
 	app.Use(cors.Allow(corsOptions()))
-	app.Post("/**", requestMarker(), securityHandler(), genericHandler())
-	app.Get("/**", requestMarker(), securityHandler(), genericHandler())
-	app.Put("/**", requestMarker(), securityHandler(), genericHandler())
-	app.Delete("/**", requestMarker(), securityHandler(), genericHandler())
-	app.Options("/**", requestMarker(), securityHandler(), genericHandler())
+	app.Use(requestMarker)
+	app.Post("/**", securityHandler(), genericHandler())
+	app.Get("/**", securityHandler(), genericHandler())
+	app.Put("/**", securityHandler(), genericHandler())
+	app.Delete("/**", securityHandler(), genericHandler())
+	app.Options("/**", securityHandler(), genericHandler())
 	app.RunOnAddr(":" + appCfg.Port)
 }
 
@@ -139,11 +140,9 @@ func corsOptions() *cors.Options {
 	}
 }
 
-func requestMarker() func(http.ResponseWriter, *http.Request, martini.Params) {
-	return func(w http.ResponseWriter, r *http.Request, params martini.Params) {
-		uuid := uuid2.New().String()
-		r.Header.Add(ReqUuid, uuid)
-	}
+func requestMarker(_ http.ResponseWriter, req *http.Request) {
+	uuid := uuid2.New().String()
+	req.Header.Add(ReqUuid, uuid)
 }
 
 func securityHandler() func(http.ResponseWriter, *http.Request, martini.Params) {
