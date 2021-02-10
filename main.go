@@ -176,22 +176,31 @@ func securityHandler() func(http.ResponseWriter, *http.Request, martini.Params) 
 					return
 				}
 
-				r.Header.Add(UserIdHeader, strconv.FormatInt(int64(userID), 10))
+				r.Header.Add(appCfg.CurrentUserIdHeaderKey, userID)
 			}
 		}
 	}
 }
 
 //tokenValidation return: userId, authenticated, authorized, error
-func tokenValidation(token string, expectedRoles []string) (uint64, bool, bool, error) {
+func tokenValidation(token string, expectedRoles []string) (string, bool, bool, error) {
 	log.WithFields(log.Fields{"type": Security}).Debugf("Token : %v \nExpected Roles: %v", token, expectedRoles)
 	if token == "" || !strings.HasPrefix(token, SupportedTokenType) {
-		return 0, false, false, errors.New(i18n[InvalidTokenSyntax])
+		return "", false, false, errors.New(i18n[InvalidTokenSyntax])
 	} else {
-		userId, userRoles, err := callTokenValidationService(removeTypeInToken(token))
+		var userId string
+		var userRoles []string
+		var err error
+		if appCfg.TokenValidationStrategy == Grpc {
+			userId, userRoles, err = callGrpcTokenValidationService(removeTypeInToken(token))
+		} else if appCfg.TokenValidationStrategy == Rest {
+			userId, userRoles, err = callRestTokenValidationService(removeTypeInToken(token))
+		} else {
+			return "", false, false, errors.New(i18n[InvalidTokenValidationStrategy])
+		}
 
 		if err != nil {
-			return 0, false, false, err
+			return "", false, false, err
 		}
 
 		if len(expectedRoles) == 0 {
@@ -214,13 +223,39 @@ func tokenValidation(token string, expectedRoles []string) (uint64, bool, bool, 
 	}
 }
 
-func callTokenValidationService(token string) (uint64, []string, error) {
+//callRestTokenValidationService userId userRoles error
+func callRestTokenValidationService(token string) (string, []string, error) {
+	request := client.R()
+
+	request.SetHeader("Content-Type", "application/json")
+	request.SetHeader("Accept", "application/json")
+	request.SetResult(&TokenValidationResp{})
+
+	u := appCfg.TokenValidationUrl + "?token=" + token
+	resp, err := request.Get(u)
+
+	if err != nil {
+		log.WithFields(log.Fields{"type": Security}).Error(err)
+		return "", nil, errors.New(i18n[TokenValidationConnErr])
+	}
+
+	if resp.IsError() {
+		return "", nil, errors.New(i18n[TokenValidationServiceErr])
+	}
+
+	result := resp.Result().(*TokenValidationResp)
+
+	return result.Id, result.Authorities, nil
+}
+
+//callGrpcTokenValidationService userId userRoles error
+func callGrpcTokenValidationService(token string) (string, []string, error) {
 	var conn *grpc.ClientConn
 	conn, err := grpc.Dial(appCfg.TokenValidationUrl, grpc.WithInsecure())
 
 	if err != nil {
 		log.WithFields(log.Fields{"type": Security}).Error(err)
-		return 0, nil, errors.New(i18n[TokenValidationConnErr])
+		return "", nil, errors.New(i18n[TokenValidationConnErr])
 	}
 
 	defer conn.Close()
@@ -233,10 +268,11 @@ func callTokenValidationService(token string) (uint64, []string, error) {
 
 	if err != nil {
 		log.WithFields(log.Fields{"type": Security}).Error(err)
-		return 0, nil, errors.New(i18n[TokenValidationServiceErr])
+		return "", nil, errors.New(i18n[TokenValidationServiceErr])
 	}
 	log.WithFields(log.Fields{"type": Security}).Debugf("Validated user: %v", response.User)
-	return response.User.GetId(), response.User.GetAuthorities(), nil
+	strUserID := strconv.FormatUint(response.User.GetId(), 10)
+	return strUserID, response.User.GetAuthorities(), nil
 }
 
 func removeTypeInToken(token string) string {

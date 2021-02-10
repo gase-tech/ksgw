@@ -19,7 +19,10 @@ type ApplicationConfig struct {
 	SecurityEnabled     bool   `envconfig:"SECURITY_ENABLED" default:"true"`
 	SecurityYamlPath    string `envconfig:"SECURITY_YAML_PATH" default:"security.yml"`
 	FetchSecuritySecond int    `envconfig:"FETCH_SECURITY_SECOND" default:"30"`
-	TokenValidationUrl  string `envconfig:"TOKEN_VALIDATION_URL" default:"localhost:7002"`
+
+	TokenValidationStrategy string `envconfig:"TOKEN_VALIDATION_STRATEGY" default:"grpc"`
+	TokenValidationUrl      string `envconfig:"TOKEN_VALIDATION_URL" default:"localhost:7002"`
+	CurrentUserIdHeaderKey  string `envconfig:"CURRENT_USER_ID_HEADER_KEY" default:"currentUserId"`
 
 	TimeOut string `envconfig:"TIME_OUT" default:"60"`
 	// Dev, Test, Prod -> default => Dev
@@ -112,4 +115,9 @@ type SecurityRule struct {
 	Path    string   `yaml:"path"`
 	Methods []string `yaml:"methods"`
 	Roles   []string `yaml:"roles"`
+}
+
+type TokenValidationResp struct {
+	Id          string   `json:"id"`
+	Authorities []string `json:"authorities"`
 }

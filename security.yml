@@ -5,3 +5,9 @@ rules:
       - POST
     roles:
       - ROLE_USER
+  - path: /customer-service/**
+    methods:
+      - GET
+      - POST
+    roles:
+      - ROLE_USER

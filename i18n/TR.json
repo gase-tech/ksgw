@@ -7,7 +7,8 @@
   "RequireAuthentication": "Giriş yapmanız gerekmektedir.",
   "RequireAuthorization": "Bu istek için yetkiniz bulunmamaktadır.",
   "InvalidTokenSyntax": "Token formatını kontrol edin.",
-  "TokenValidationConnErr" : "Token doğrulana servisine erişilemiyor. Lütfen logları inceleyin.",
+  "TokenValidationConnErr" : "Token doğrulama servisine erişilemiyor. Lütfen logları inceleyin.",
   "TokenValidationServiceErr": "Token doğrulanamadı.",
+  "InvalidTokenValidationStrategy": "Geçersiz token doğrulama servisi çağırılma yöntemi.",
   "GenericError": "Detaylar için lütfen logları görüntüleyiniz."
 }

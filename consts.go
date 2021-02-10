@@ -11,7 +11,6 @@ const (
 	ReqUuid            = "REQ_UUID"
 	Authorization      = "Authorization"
 	SupportedTokenType = "Bearer"
-	UserIdHeader       = "currentUserId"
 
 	// Locator Source
 	StaticFile = "STATIC_FILE"
@@ -23,6 +22,10 @@ const (
 	Warning  = "warning"
 	Critical = "critical"
 
+	// Token Validation Strategy
+	Grpc = "grpc"
+	Rest = "rest"
+
 	// Profiles
 	Dev  = "DEV"
 	Test = "TEST"
@@ -33,15 +36,16 @@ const (
 	TR = "TR"
 
 	// Messages
-	ServiceNotFound           = "ServiceNotFound"
-	SuccessfullyFetchOnFile   = "SuccessfullyFetchOnFile"
-	SuccessfullyFetchOnEureka = "SuccessfullyFetchOnEureka"
-	SuccessfullyFetchOnConsul = "SuccessfullyFetchOnConsul"
-	SecurityConfigUpdated     = "SecurityConfigUpdated"
-	RequireAuthentication     = "RequireAuthentication"
-	RequireAuthorization      = "RequireAuthorization"
-	InvalidTokenSyntax        = "InvalidTokenSyntax"
-	TokenValidationConnErr    = "TokenValidationConnErr"
-	TokenValidationServiceErr = "TokenValidationServiceErr"
-	GenericError              = "GenericError"
+	ServiceNotFound                = "ServiceNotFound"
+	SuccessfullyFetchOnFile        = "SuccessfullyFetchOnFile"
+	SuccessfullyFetchOnEureka      = "SuccessfullyFetchOnEureka"
+	SuccessfullyFetchOnConsul      = "SuccessfullyFetchOnConsul"
+	SecurityConfigUpdated          = "SecurityConfigUpdated"
+	RequireAuthentication          = "RequireAuthentication"
+	RequireAuthorization           = "RequireAuthorization"
+	InvalidTokenSyntax             = "InvalidTokenSyntax"
+	TokenValidationConnErr         = "TokenValidationConnErr"
+	TokenValidationServiceErr      = "TokenValidationServiceErr"
+	InvalidTokenValidationStrategy = "InvalidTokenValidationStrategy"
+	GenericError                   = "GenericError"
 )
