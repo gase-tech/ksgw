@@ -240,6 +240,7 @@ func callRestTokenValidationService(token string) (string, []string, error) {
 	}
 
 	if resp.IsError() {
+		log.WithFields(log.Fields{"type": Security}).Error("Token validation response status: " + resp.Status())
 		return "", nil, errors.New(i18n[TokenValidationServiceErr])
 	}
 
