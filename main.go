@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -317,16 +318,10 @@ func genericHandler() func(http.ResponseWriter, *http.Request, martini.Params) {
 		if len(dividedPath) > 0 {
 			reqPrefix := dividedPath[0]
 
-			var equivalentLocator *Locator
-			for _, locator := range locators {
-				if locator.Prefix == reqPrefix {
-					equivalentLocator = &locator
-					break
-				}
-			}
+			suitableUrl := getSuitableServiceUrl(reqPrefix)
 
-			if equivalentLocator != nil {
-				remote, err := url.Parse(equivalentLocator.Urls[0])
+			if suitableUrl != "" {
+				remote, err := url.Parse(suitableUrl)
 				if err != nil {
 					log.WithFields(log.Fields{"type": ReqDetail}).Error(err)
 				}
@@ -345,6 +340,29 @@ func genericHandler() func(http.ResponseWriter, *http.Request, martini.Params) {
 				_, _ = w.Write(generateGenericErrorJsonStr(i18n[ServiceNotFound]))
 			}
 		}
+	}
+}
+
+func getSuitableServiceUrl(reqPrefix string) string {
+	var equivalentLocator Locator
+	for _, locator := range locators {
+		if locator.Prefix == reqPrefix {
+			equivalentLocator = locator
+			break
+		}
+	}
+
+	return applyLoadBalance(equivalentLocator)
+}
+
+func applyLoadBalance(locator Locator) string {
+	if len(locator.Urls) == 0 {
+		return ""
+	} else if len(locator.Urls) == 1 {
+		return locator.Urls[0]
+	} else {
+		i := rand.Intn(len(locator.Urls))
+		return locator.Urls[i]
 	}
 }
 
