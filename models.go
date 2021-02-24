@@ -3,7 +3,7 @@ package main
 type ApplicationConfig struct {
 	// EN, TR
 	Language string `envconfig:"LANGUAGE" default:"EN"`
-	// StaticFile, Eureka, Consul -> default => StaticFile
+	// StaticFile, Eureka, Consul
 	LocatorSource       string `envconfig:"LOCATOR_SOURCE" default:"STATIC_FILE"`
 	LocatorFilePath     string `envconfig:"LOCATOR_FILE_PATH" default:"locators.json"`
 	FetchLocatorsSecond int    `envconfig:"FETCH_LOCATORS_SECOND" default:"30"`
@@ -20,6 +20,7 @@ type ApplicationConfig struct {
 	SecurityYamlPath    string `envconfig:"SECURITY_YAML_PATH" default:"security.yml"`
 	FetchSecuritySecond int    `envconfig:"FETCH_SECURITY_SECOND" default:"30"`
 
+	// Grpc, Rest
 	TokenValidationStrategy string `envconfig:"TOKEN_VALIDATION_STRATEGY" default:"grpc"`
 	TokenValidationUrl      string `envconfig:"TOKEN_VALIDATION_URL" default:"localhost:7002"`
 	CurrentUserIdHeaderKey  string `envconfig:"CURRENT_USER_ID_HEADER_KEY" default:"currentUserId"`
