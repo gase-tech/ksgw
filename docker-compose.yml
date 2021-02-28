@@ -1,0 +1,19 @@
+version: '3.5'
+services:
+  ksgw:
+    image: ksgw:latest
+    container_name: ksgw
+    environment:
+      - LOCATOR_SOURCE=CONSUL
+      - LANGUAGE=TR
+      - TOKEN_VALIDATION_STRATEGY=grpc
+      - TOKEN_VALIDATION_URL=192.168.1.24:7002
+      - CONSUL_URL=http://badger:8500/v1
+      - CURRENT_USER_ID_HEADER_KEY=currentUserId
+    ports:
+      - "4000:4000"
+
+
+networks:
+  default:
+    name: microservice
