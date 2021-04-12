@@ -20,10 +20,11 @@ type ApplicationConfig struct {
 	SecurityYamlPath    string `envconfig:"SECURITY_YAML_PATH" default:"security.yml"`
 	FetchSecuritySecond int    `envconfig:"FETCH_SECURITY_SECOND" default:"30"`
 
-	// Grpc, Rest
-	TokenValidationStrategy string `envconfig:"TOKEN_VALIDATION_STRATEGY" default:"grpc"`
-	TokenValidationUrl      string `envconfig:"TOKEN_VALIDATION_URL" default:"localhost:7002"`
-	CurrentUserIdHeaderKey  string `envconfig:"CURRENT_USER_ID_HEADER_KEY" default:"currentUserId"`
+	// Grpc, Rest, Static
+	TokenValidationStrategy  string `envconfig:"TOKEN_VALIDATION_STRATEGY" default:"grpc"`
+	TokenValidationSecretKey string `envconfig:"TOKEN_VALIDATION_SECRET_KEY"`
+	TokenValidationUrl       string `envconfig:"TOKEN_VALIDATION_URL" default:"localhost:7002"`
+	CurrentUserIdHeaderKey   string `envconfig:"CURRENT_USER_ID_HEADER_KEY" default:"currentUserId"`
 
 	TimeOut string `envconfig:"TIME_OUT" default:"60"`
 	// Dev, Test, Prod -> default => Dev

@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/carlescere/scheduler"
 	"github.com/codegangsta/martini"
+	"github.com/dgrijalva/jwt-go"
 	"github.com/go-resty/resty/v2"
 	uuid2 "github.com/google/uuid"
 	token_validation "github.com/imminoglobulib/ksgw/token-validation"
@@ -196,6 +199,8 @@ func tokenValidation(token string, expectedRoles []string) (string, bool, bool, 
 			userId, userRoles, err = callGrpcTokenValidationService(removeTypeInToken(token))
 		} else if appCfg.TokenValidationStrategy == Rest {
 			userId, userRoles, err = callRestTokenValidationService(removeTypeInToken(token))
+		} else if appCfg.TokenValidationStrategy == Static {
+			userId, userRoles, err = staticTokenValidation(removeTypeInToken(token))
 		} else {
 			return "", false, false, errors.New(i18n[InvalidTokenValidationStrategy])
 		}
@@ -222,6 +227,44 @@ func tokenValidation(token string, expectedRoles []string) (string, bool, bool, 
 			}
 		}
 	}
+}
+
+func staticTokenValidation(token string) (string, []string, error) {
+	parsedJWT, err := validateToken(token)
+
+	if err != nil && parsedJWT == nil && !parsedJWT.Valid {
+		return "", nil, err
+	}
+
+	claims, err := verifyJwtToken(token)
+
+	if err != nil {
+		return "", nil, err
+	}
+
+	log.Info(claims)
+	// TODO: send service in header
+	return "", nil, nil
+}
+
+func verifyJwtToken(tokenString string) (*jwt.MapClaims, error) {
+	claims := jwt.MapClaims{}
+	_, _ = jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		return []byte(appCfg.TokenValidationSecretKey), nil
+	})
+
+	return &claims, nil
+}
+
+func validateToken(encodedToken string) (*jwt.Token, error) {
+	decodeString, _ := base64.URLEncoding.DecodeString(appCfg.TokenValidationSecretKey)
+	return jwt.Parse(encodedToken, func(token *jwt.Token) (interface{}, error) {
+		if _, isvalid := token.Method.(*jwt.SigningMethodHMAC); !isvalid {
+			return nil, fmt.Errorf("Invalid token", token.Header["alg"])
+
+		}
+		return []byte(decodeString), nil
+	})
 }
 
 //callRestTokenValidationService userId userRoles error

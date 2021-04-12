@@ -63,9 +63,13 @@ Default: 30
 Desc: routing security rules update period as second
 ```
 ```bash
-Name: TOKEN_VALIDATION_STRATEGY (grpc/rest)
+Name: TOKEN_VALIDATION_STRATEGY (grpc/rest/static)
 Default: grpc
 Desc: token validation service call method
+```
+```bash
+Name: TOKEN_VALIDATION_SECRET_KEY
+Desc: if token validation strategy is static
 ```
 ```bash
 Name: TOKEN_VALIDATION_URL

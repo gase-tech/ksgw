@@ -23,8 +23,9 @@ const (
 	Critical = "critical"
 
 	// Token Validation Strategy
-	Grpc = "grpc"
-	Rest = "rest"
+	Grpc   = "grpc"
+	Rest   = "rest"
+	Static = "static"
 
 	// Profiles
 	Dev  = "DEV"
