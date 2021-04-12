@@ -10,5 +10,6 @@
   "TokenValidationConnErr" : "Token validation service connection error. Please view logs.",
   "TokenValidationServiceErr": "Token is invalid.",
   "InvalidTokenValidationStrategy": "Invalid token validation service call strategy",
-  "GenericError": "Please view logs."
+  "GenericError": "Please view logs.",
+  "InvalidToken": "Invalid token."
 }

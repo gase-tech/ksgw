@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/carlescere/scheduler"
 	"github.com/codegangsta/martini"
 	"github.com/dgrijalva/jwt-go"
@@ -259,11 +258,11 @@ func verifyJwtToken(tokenString string) (*jwt.MapClaims, error) {
 func validateToken(encodedToken string) (*jwt.Token, error) {
 	decodeString, _ := base64.URLEncoding.DecodeString(appCfg.TokenValidationSecretKey)
 	return jwt.Parse(encodedToken, func(token *jwt.Token) (interface{}, error) {
-		if _, isvalid := token.Method.(*jwt.SigningMethodHMAC); !isvalid {
-			return nil, fmt.Errorf("Invalid token", token.Header["alg"])
+		if _, isValid := token.Method.(*jwt.SigningMethodHMAC); !isValid {
+			return nil, errors.New(i18n[InvalidToken])
 
 		}
-		return []byte(decodeString), nil
+		return decodeString, nil
 	})
 }
 

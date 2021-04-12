@@ -45,6 +45,7 @@ const (
 	RequireAuthentication          = "RequireAuthentication"
 	RequireAuthorization           = "RequireAuthorization"
 	InvalidTokenSyntax             = "InvalidTokenSyntax"
+	InvalidToken                   = "InvalidToken"
 	TokenValidationConnErr         = "TokenValidationConnErr"
 	TokenValidationServiceErr      = "TokenValidationServiceErr"
 	InvalidTokenValidationStrategy = "InvalidTokenValidationStrategy"

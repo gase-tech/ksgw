@@ -10,5 +10,6 @@
   "TokenValidationConnErr" : "Token doğrulama servisine erişilemiyor. Lütfen logları inceleyin.",
   "TokenValidationServiceErr": "Token doğrulanamadı.",
   "InvalidTokenValidationStrategy": "Geçersiz token doğrulama servisi çağırılma yöntemi.",
-  "GenericError": "Detaylar için lütfen logları görüntüleyiniz."
+  "GenericError": "Detaylar için lütfen logları görüntüleyiniz.",
+  "InvalidToken": "Geçersiz token."
 }
